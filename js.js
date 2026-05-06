@@ -1,35 +1,78 @@
+
+
+
+console.log("Firebase conectado");
+
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.0/firebase-app.js";
+import {
+getFirestore,
+collection,
+addDoc,
+deleteDoc,
+doc,
+updateDoc,
+onSnapshot
+} from "https://www.gstatic.com/firebasejs/10.7.0/firebase-firestore.js";
+
+/* CONFIG FIREBASE */
+const firebaseConfig = {
+  apiKey: "AIzaSyD_oVYa7u98-j48AdJBUNKqImIptlafCfM",
+  authDomain: "transporte-escolar-56fd0.firebaseapp.com",
+  projectId: "transporte-escolar-56fd0",
+  storageBucket: "transporte-escolar-56fd0.firebasestorage.app",
+  messagingSenderId: "361343110638",
+  appId: "1:361343110638:web:b729f0408f93519127d2ff",
+  measurementId: "G-T3LFBWLB27"
+};
+
+const app = initializeApp(firebaseConfig);
+const db = getFirestore(app);
+
+/* REFERENCIAS */
+const studentsRef = collection(db, "students");
+const expensesRef = collection(db, "expenses");
+
 const monthsList = [
 "Jan","Fev","Mar","Abr","Mai","Jun",
 "Jul","Ago","Set","Out","Nov","Dez"
 ];
 
-function getStudents() {
-return JSON.parse(localStorage.getItem("students")) || [];
-}
+let students = [];
+let expenses = [];
 
-function saveStudents(students) {
-localStorage.setItem("students", JSON.stringify(students));
-}
+/* ========================= */
+/* REALTIME (ATUALIZA AUTOMATICO) */
+/* ========================= */
 
-function getExpenses() {
-return JSON.parse(localStorage.getItem("expenses")) || [];
-}
+onSnapshot(studentsRef, (snapshot) => {
+students = snapshot.docs.map(doc => ({
+id: doc.id,
+...doc.data()
+}));
+renderStudents();
+});
 
-function saveExpenses(expenses) {
-localStorage.setItem("expenses", JSON.stringify(expenses));
-}
+onSnapshot(expensesRef, (snapshot) => {
+expenses = snapshot.docs.map(doc => ({
+id: doc.id,
+...doc.data()
+}));
+renderExpenses();
+});
+
+/* ========================= */
+/* RENDER */
+/* ========================= */
 
 function renderStudents() {
 
-const table =
-document.getElementById("studentTable");
-
+const table = document.getElementById("studentTable");
 table.innerHTML = "";
 
 const search =
 document.getElementById("search").value.toLowerCase();
 
-getStudents().forEach((s, index) => {
+students.forEach((s, index) => {
 
 const text =
 `${s.nome} ${s.pais} ${s.idade} ${s.bairro}`.toLowerCase();
@@ -43,47 +86,33 @@ monthsList.map((m, i) => `
 <input
 type="checkbox"
 ${s.meses[i] ? "checked" : ""}
-onchange="toggleMonth(${index}, ${i})"
+onchange="toggleMonth('${s.id}', ${i})"
 >
 ${m}
 </label>
 
 `).join("");
 
-const row =
-document.createElement("tr");
+const row = document.createElement("tr");
 
 row.innerHTML = `
-
 <td>${s.nome}</td>
 <td>${s.pais}</td>
 <td>${s.idade}</td>
 <td>${s.bairro}</td>
 <td>R$ ${s.valor}</td>
 
-<td class="months">
-${monthsHtml}
+<td class="months">${monthsHtml}</td>
+
+<td>
+<span class="delete-btn" style="background: orange"
+onclick="editStudent('${s.id}')">✏️</span>
 </td>
 
 <td>
-<span
-class="delete-btn"
-style="background: orange"
-onclick="editStudent(${index})"
->
-✏️
-</span>
+<span class="delete-btn"
+onclick="deleteStudent('${s.id}')">🗑</span>
 </td>
-
-<td>
-<span
-class="delete-btn"
-onclick="deleteStudent(${index})"
->
-🗑
-</span>
-</td>
-
 `;
 
 table.appendChild(row);
@@ -91,35 +120,24 @@ table.appendChild(row);
 });
 
 updateTotals();
-
 }
 
 function renderExpenses() {
 
-const table =
-document.getElementById("expenseTable");
-
+const table = document.getElementById("expenseTable");
 table.innerHTML = "";
 
-getExpenses().forEach((e, index) => {
+expenses.forEach((e) => {
 
-const row =
-document.createElement("tr");
+const row = document.createElement("tr");
 
 row.innerHTML = `
-
 <td>${e.desc}</td>
 <td>R$ ${e.valor}</td>
-
 <td>
-<span
-class="delete-btn"
-onclick="deleteExpense(${index})"
->
-🗑
-</span>
+<span class="delete-btn"
+onclick="deleteExpense('${e.id}')">🗑</span>
 </td>
-
 `;
 
 table.appendChild(row);
@@ -127,231 +145,111 @@ table.appendChild(row);
 });
 
 updateTotals();
-
 }
+
+/* ========================= */
+/* TOTAL */
+/* ========================= */
 
 function updateTotals() {
 
-const students = getStudents();
-const expenses = getExpenses();
-
 let totalStudents =
-students.reduce(
-(sum, s) => sum + Number(s.valor),
-0
-);
+students.reduce((sum, s) => sum + Number(s.valor), 0);
 
 let totalExpenses =
-expenses.reduce(
-(sum, e) => sum + Number(e.valor),
-0
-);
+expenses.reduce((sum, e) => sum + Number(e.valor), 0);
 
-let saldo =
-totalStudents - totalExpenses;
+let saldo = totalStudents - totalExpenses;
 
-document.getElementById(
-"totalAlunos"
-).innerText =
-"Total recebido dos alunos: R$ " +
-totalStudents.toFixed(2);
+document.getElementById("totalAlunos").innerText =
+"Total recebido: R$ " + totalStudents.toFixed(2);
 
-document.getElementById(
-"totalDespesas"
-).innerText =
-"Total de despesas: R$ " +
-totalExpenses.toFixed(2);
+document.getElementById("totalDespesas").innerText =
+"Despesas: R$ " + totalExpenses.toFixed(2);
 
-if (saldo >= 0) {
-
-document.getElementById(
-"saldoFinal"
-).innerText =
-"Lucro do mês: R$ " +
-saldo.toFixed(2);
-
-} else {
-
-document.getElementById(
-"saldoFinal"
-).innerText =
-"Prejuízo do mês: R$ " +
-saldo.toFixed(2);
-
+document.getElementById("saldoFinal").innerText =
+saldo >= 0
+? "Lucro: R$ " + saldo.toFixed(2)
+: "Prejuízo: R$ " + saldo.toFixed(2);
 }
 
+/* ========================= */
+/* CRUD STUDENTS */
+/* ========================= */
+
+window.deleteStudent = async (id) => {
+if (confirm("Excluir aluno?")) {
+await deleteDoc(doc(db, "students", id));
 }
-
-function deleteStudent(index) {
-
-if (confirm("Deseja realmente excluir este aluno?")) {
-
-let students = getStudents();
-
-students.splice(index, 1);
-
-saveStudents(students);
-
-renderStudents();
-
-}
-
-}
-
-function deleteExpense(index) {
-
-if (confirm("Deseja realmente excluir esta despesa?")) {
-
-let expenses = getExpenses();
-
-expenses.splice(index, 1);
-
-saveExpenses(expenses);
-
-renderExpenses();
-
-}
-
-}
-
-function toggleMonth(studentIndex, monthIndex) {
-
-let students = getStudents();
-
-students[studentIndex].meses[monthIndex] =
-!students[studentIndex].meses[monthIndex];
-
-saveStudents(students);
-
-}
-
-/* NOVA FUNÇÃO EDITAR */
-
-function editStudent(index) {
-
-let students = getStudents();
-
-let aluno = students[index];
-
-let nomeNovo =
-prompt("Nome do aluno:", aluno.nome);
-
-if (nomeNovo === null) return;
-
-let paisNovo =
-prompt("Nome do pai/mãe:", aluno.pais);
-
-if (paisNovo === null) return;
-
-let idadeNova =
-prompt("Idade:", aluno.idade);
-
-if (idadeNova === null) return;
-
-let bairroNovo =
-prompt("Bairro:", aluno.bairro);
-
-if (bairroNovo === null) return;
-
-let valorNovo =
-prompt("Valor mensal:", aluno.valor);
-
-if (valorNovo === null) return;
-
-students[index] = {
-
-nome: nomeNovo,
-pais: paisNovo,
-idade: idadeNova,
-bairro: bairroNovo,
-valor: valorNovo,
-meses: aluno.meses
-
 };
 
-saveStudents(students);
+window.toggleMonth = async (id, monthIndex) => {
 
-renderStudents();
+const aluno = students.find(s => s.id === id);
 
+aluno.meses[monthIndex] = !aluno.meses[monthIndex];
+
+await updateDoc(doc(db, "students", id), {
+meses: aluno.meses
+});
+};
+
+window.editStudent = async (id) => {
+
+const aluno = students.find(s => s.id === id);
+
+let nome = prompt("Nome:", aluno.nome);
+if (!nome) return;
+
+await updateDoc(doc(db, "students", id), {
+nome
+});
+};
+
+/* ========================= */
+/* CRUD EXPENSES */
+/* ========================= */
+
+window.deleteExpense = async (id) => {
+if (confirm("Excluir despesa?")) {
+await deleteDoc(doc(db, "expenses", id));
 }
+};
 
-/* CADASTRO ALUNO */
+/* ========================= */
+/* FORM */
+/* ========================= */
 
-document
-.getElementById("studentForm")
-.addEventListener(
-"submit",
-function(e) {
+document.getElementById("studentForm")
+.addEventListener("submit", async function(e){
 
 e.preventDefault();
 
-let students =
-getStudents();
-
-const novo = {
-
+await addDoc(studentsRef, {
 nome: nome.value,
 pais: pais.value,
 idade: idade.value,
 bairro: bairro.value,
 valor: valor.value,
-
-meses:
-new Array(12).fill(false)
-
-};
-
-students.push(novo);
-
-saveStudents(students);
+meses: new Array(12).fill(false)
+});
 
 this.reset();
+});
 
-renderStudents();
-
-}
-);
-
-/* CADASTRO DESPESA */
-
-document
-.getElementById("expenseForm")
-.addEventListener(
-"submit",
-function(e) {
+document.getElementById("expenseForm")
+.addEventListener("submit", async function(e){
 
 e.preventDefault();
 
-let expenses =
-getExpenses();
-
-expenses.push({
-
-desc:
-descDespesa.value,
-
-valor:
-valorDespesa.value
-
+await addDoc(expensesRef, {
+desc: descDespesa.value,
+valor: valorDespesa.value
 });
 
-saveExpenses(expenses);
-
 this.reset();
-
-renderExpenses();
-
-}
-);
+});
 
 /* PESQUISA */
-
-document
-.getElementById("search")
-.addEventListener(
-"input",
-renderStudents
-);
-
-renderStudents();
-renderExpenses();
+document.getElementById("search")
+.addEventListener("input", renderStudents);
